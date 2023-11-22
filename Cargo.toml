@@ -1,0 +1,26 @@
+[package]
+name = "calldata-compressor"
+version = "0.1.0"
+edition = "2021"
+
+[profile.dev]
+panic = "unwind"
+overflow-checks = false
+debug = false
+
+[profile.release]
+codegen-units = 1
+opt-level = 3
+lto = true
+debug = false
+panic = "unwind"
+overflow-checks = false
+
+[dependencies]
+anyhow = "1.0.75"
+hex = "0.4.3"
+num-bigint = "0.4.4"
+thiserror = "1.0.50"
+
+[lints.rust]
+unsafe_code = "forbid"
