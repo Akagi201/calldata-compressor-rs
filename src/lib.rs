@@ -453,23 +453,20 @@ impl Calldata {
                         .clone();
                 }
 
-                // if prefix_compress.power.range() + part_compress.power.range()
-                //     > current_best_compress.power.range()
-                // {
-                //     current_best_compress = CompressData {
-                //         power: CompressDataPower {
-                //             decompressed_size: prefix_compress.power.decompressed_size
-                //                 + part_compress.power.decompressed_size,
-                //             compressed_size: prefix_compress.power.compressed_size
-                //                 + part_compress.power.compressed_size,
-                //         },
-                //         description: [
-                //             prefix_compress.description,
-                //             part_compress.description,
-                //         ]
-                //         .concat(),
-                //     };
-                // }
+                if prefix_compress.power[0].range() + part_compress.power[0].range()
+                    > current_best_compress.power[0].range()
+                {
+                    current_best_compress = CompressData {
+                        power: vec![CompressDataPower {
+                            decompressed_size: prefix_compress.power[0].decompressed_size
+                                + part_compress.power[0].decompressed_size,
+                            compressed_size: prefix_compress.power[0].compressed_size
+                                + part_compress.power[0].compressed_size,
+                        }],
+                        description: [prefix_compress.description, part_compress.description]
+                            .concat(),
+                    };
+                }
             }
 
             best_compress_for_first_n_bytes.push(current_best_compress);
