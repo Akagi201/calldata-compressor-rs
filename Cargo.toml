@@ -18,9 +18,13 @@ overflow-checks = false
 
 [dependencies]
 anyhow = "1.0.75"
+ethers = "2.0.11"
 hex = "0.4.3"
 num-bigint = "0.4.4"
 thiserror = "1.0.50"
 
 [lints.rust]
 unsafe_code = "forbid"
+
+[lints.clippy]
+int_plus_one = "allow"
