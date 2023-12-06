@@ -636,7 +636,7 @@ pub struct CompressResult {
     pub description: Vec<CompressDataDescription>,
 }
 
-pub async fn compress(
+pub fn compress(
     calldata: &Bytes,
     wallet_addr: &Bytes32,
     contract_addr: &Bytes32,
