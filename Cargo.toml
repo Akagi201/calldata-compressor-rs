@@ -2,6 +2,8 @@
 name = "calldata-compressor"
 version = "0.1.0"
 edition = "2021"
+description = "Compresses calldata for Ethereum transactions"
+license = "Apache-2.0"
 
 [profile.dev]
 panic = "unwind"
