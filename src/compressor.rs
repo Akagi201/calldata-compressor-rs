@@ -112,8 +112,8 @@ impl Calldata {
     ) -> Result<Self, CompressorError> {
         Ok(Calldata {
             data: data.clone(),
-            wallet_addr: wallet_addr.clone(),
-            contract_addr: contract_addr.clone(),
+            wallet_addr: *wallet_addr,
+            contract_addr: *contract_addr,
             bytes_info: Vec::new(),
             dict: Vec::new(),
             lookup: HashMap::new(),
@@ -122,7 +122,7 @@ impl Calldata {
 
     pub fn analyse(&mut self) -> Vec<ByteInfo> {
         self.bytes_info = vec![];
-        for i in (0..self.data.len()).step_by(1) {
+        for i in 0..self.data.len() {
             self.bytes_info.push(ByteInfo {
                 index: i,
                 zero_compress: self.check_zeros_case(i),
@@ -135,7 +135,8 @@ impl Calldata {
 
     pub fn create_desc(
         &self,
-        array_desc: &Vec<CompressDataDescription>,
+        from_byte: usize,
+        array_desc: &[CompressDataDescription],
         amount_bytes: usize,
         method: u8,
     ) -> CompressDataDescription {
@@ -143,7 +144,7 @@ impl Calldata {
             let prev_desc_index = array_desc.len() - 1;
             array_desc[prev_desc_index].start_byte + array_desc[prev_desc_index].amount_bytes
         } else {
-            0
+            from_byte
         };
         CompressDataDescription {
             start_byte,
@@ -154,6 +155,7 @@ impl Calldata {
 
     pub fn add_just_copy_compress(
         &self,
+        from_byte: usize,
         mut result_compress: CompressData,
         amount: usize,
     ) -> CompressData {
@@ -163,6 +165,7 @@ impl Calldata {
                 compressed_size: 1 + amount,
             });
             result_compress.description.push(self.create_desc(
+                from_byte,
                 &result_compress.description,
                 amount,
                 0x01,
@@ -184,7 +187,8 @@ impl Calldata {
         let mut i = from_byte;
         while i <= to_byte {
             if self.bytes_info[i].zero_compress.decompressed_size >= to_byte - i + 1 {
-                part_compress = self.add_just_copy_compress(part_compress, just_copy_amount);
+                part_compress =
+                    self.add_just_copy_compress(from_byte, part_compress, just_copy_amount);
                 part_compress.power.add(&CompressDataPower {
                     decompressed_size: to_byte - from_byte + 1,
                     compressed_size: 1,
@@ -226,7 +230,8 @@ impl Calldata {
                         continue;
                     }
 
-                    part_compress = self.add_just_copy_compress(part_compress, just_copy_amount);
+                    part_compress =
+                        self.add_just_copy_compress(from_byte, part_compress, just_copy_amount);
 
                     if is_zero_compress {
                         if self.bytes_info[i].storage_compress[j].range()
@@ -236,6 +241,7 @@ impl Calldata {
                                 .power
                                 .add(&self.bytes_info[i].clone().storage_compress[j].clone());
                             part_compress.description.push(self.create_desc(
+                                from_byte,
                                 &part_compress.description,
                                 self.bytes_info[i].storage_compress[j].decompressed_size,
                                 if self.bytes_info[i].storage_compress[j].compressed_size == 2 {
@@ -250,6 +256,7 @@ impl Calldata {
                                 .power
                                 .add(&self.bytes_info[i].clone().zero_compress.clone());
                             part_compress.description.push(self.create_desc(
+                                from_byte,
                                 &part_compress.description,
                                 zero_bytes_amount,
                                 0x00,
@@ -261,6 +268,7 @@ impl Calldata {
                             .power
                             .add(&self.bytes_info[i].clone().storage_compress[j].clone());
                         part_compress.description.push(self.create_desc(
+                            from_byte,
                             &part_compress.description,
                             self.bytes_info[i].storage_compress[j].decompressed_size,
                             if self.bytes_info[i].storage_compress[j].compressed_size == 2 {
@@ -275,6 +283,7 @@ impl Calldata {
                             .power
                             .add(&self.bytes_info[i].clone().copy_compress);
                         part_compress.description.push(self.create_desc(
+                            from_byte,
                             &part_compress.description,
                             self.bytes_info[i].copy_compress.decompressed_size,
                             0x01,
@@ -291,7 +300,8 @@ impl Calldata {
 
             if !is_storage_compress_used {
                 if is_zero_compress || is_padding_with_copy {
-                    part_compress = self.add_just_copy_compress(part_compress, just_copy_amount);
+                    part_compress =
+                        self.add_just_copy_compress(from_byte, part_compress, just_copy_amount);
                 }
 
                 if is_zero_compress {
@@ -299,6 +309,7 @@ impl Calldata {
                         .power
                         .add(&self.bytes_info[i].clone().zero_compress);
                     part_compress.description.push(self.create_desc(
+                        from_byte,
                         &part_compress.description,
                         zero_bytes_amount,
                         0x00,
@@ -309,6 +320,7 @@ impl Calldata {
                         .power
                         .add(&self.bytes_info[i].clone().copy_compress);
                     part_compress.description.push(self.create_desc(
+                        from_byte,
                         &part_compress.description,
                         self.bytes_info[i].copy_compress.decompressed_size,
                         0x01,
@@ -328,14 +340,14 @@ impl Calldata {
                 );
                 just_copy_amount += new_just_copy_amount;
                 if just_copy_amount > 32 {
-                    part_compress = self.add_just_copy_compress(part_compress, 32);
+                    part_compress = self.add_just_copy_compress(from_byte, part_compress, 32);
                     just_copy_amount -= 32;
                 }
                 i += new_just_copy_amount;
             }
         }
 
-        part_compress = self.add_just_copy_compress(part_compress, just_copy_amount);
+        part_compress = self.add_just_copy_compress(from_byte, part_compress, just_copy_amount);
 
         part_compress
     }
@@ -462,14 +474,18 @@ impl Calldata {
                     compressed_size: best_compress_for_first_n_bytes[i - 1].power.compressed_size
                         + 2,
                 },
-                description: vec![CompressDataDescription {
-                    start_byte: i,
-                    amount_bytes: 1,
-                    method: 0x01,
-                }],
+                description: [
+                    best_compress_for_first_n_bytes[i - 1].clone().description,
+                    vec![CompressDataDescription {
+                        start_byte: i,
+                        amount_bytes: 1,
+                        method: 0x01,
+                    }],
+                ]
+                .concat(),
             };
 
-            for j in (i..=std::cmp::max(0, i as isize - 63) as usize).rev() {
+            for j in (std::cmp::max(0, i as isize - 63) as usize..=i).rev() {
                 let part_compress = self.compress_part(j, i);
 
                 let mut prefix_compress = CompressData {
@@ -617,7 +633,7 @@ impl Calldata {
             let tail = self.get_bytes(n, *len);
             let index = self.lookup.get(&tail);
             if let Some(index) = index {
-                if tail.len() / 2 >= *len {
+                if tail.len() >= *len {
                     best.push(CompressDataPower {
                         decompressed_size: *len,
                         compressed_size: if *index > 4096 { 3 } else { 2 },

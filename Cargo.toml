@@ -28,3 +28,4 @@ unsafe_code = "forbid"
 
 [lints.clippy]
 int_plus_one = "allow"
+needless_range_loop = "allow"
