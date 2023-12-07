@@ -56,14 +56,14 @@ impl CompressDataPower {
 #[derive(Debug, Clone)]
 pub struct CompressData {
     pub power: CompressDataPower, /* An instance of CompressDataPower representing the power of the compressed data. */
-    pub description: Vec<CompressDataDescription>, /* An instance of CompressDataDescription representing the description of how the data was compressed. */
+    pub descriptions: Vec<CompressDataDescription>, /* An instance of CompressDataDescription representing the description of how the data was compressed. */
 }
 
 impl CompressData {
-    pub fn new(power: CompressDataPower, description: &[CompressDataDescription]) -> Self {
+    pub fn new(power: CompressDataPower, descriptions: &[CompressDataDescription]) -> Self {
         CompressData {
             power,
-            description: description.to_vec(),
+            descriptions: descriptions.to_vec(),
         }
     }
 }
@@ -164,9 +164,9 @@ impl Calldata {
                 decompressed_size: amount,
                 compressed_size: 1 + amount,
             });
-            result_compress.description.push(self.create_desc(
+            result_compress.descriptions.push(self.create_desc(
                 from_byte,
-                &result_compress.description,
+                &result_compress.descriptions,
                 amount,
                 0x01,
             ));
@@ -180,7 +180,7 @@ impl Calldata {
                 decompressed_size: 0,
                 compressed_size: 0,
             },
-            description: vec![],
+            descriptions: vec![],
         };
         let mut just_copy_amount: usize = 0;
 
@@ -193,7 +193,7 @@ impl Calldata {
                     decompressed_size: to_byte - from_byte + 1,
                     compressed_size: 1,
                 });
-                part_compress.description.push(CompressDataDescription {
+                part_compress.descriptions.push(CompressDataDescription {
                     start_byte: i,
                     amount_bytes: to_byte - i + 1,
                     method: 0x00,
@@ -240,9 +240,9 @@ impl Calldata {
                             part_compress
                                 .power
                                 .add(&self.bytes_info[i].clone().storage_compress[j].clone());
-                            part_compress.description.push(self.create_desc(
+                            part_compress.descriptions.push(self.create_desc(
                                 from_byte,
-                                &part_compress.description,
+                                &part_compress.descriptions,
                                 self.bytes_info[i].storage_compress[j].decompressed_size,
                                 if self.bytes_info[i].storage_compress[j].compressed_size == 2 {
                                     0x10
@@ -255,9 +255,9 @@ impl Calldata {
                             part_compress
                                 .power
                                 .add(&self.bytes_info[i].clone().zero_compress.clone());
-                            part_compress.description.push(self.create_desc(
+                            part_compress.descriptions.push(self.create_desc(
                                 from_byte,
-                                &part_compress.description,
+                                &part_compress.descriptions,
                                 zero_bytes_amount,
                                 0x00,
                             ));
@@ -267,9 +267,9 @@ impl Calldata {
                         part_compress
                             .power
                             .add(&self.bytes_info[i].clone().storage_compress[j].clone());
-                        part_compress.description.push(self.create_desc(
+                        part_compress.descriptions.push(self.create_desc(
                             from_byte,
-                            &part_compress.description,
+                            &part_compress.descriptions,
                             self.bytes_info[i].storage_compress[j].decompressed_size,
                             if self.bytes_info[i].storage_compress[j].compressed_size == 2 {
                                 0x10
@@ -282,9 +282,9 @@ impl Calldata {
                         part_compress
                             .power
                             .add(&self.bytes_info[i].clone().copy_compress);
-                        part_compress.description.push(self.create_desc(
+                        part_compress.descriptions.push(self.create_desc(
                             from_byte,
-                            &part_compress.description,
+                            &part_compress.descriptions,
                             self.bytes_info[i].copy_compress.decompressed_size,
                             0x01,
                         ));
@@ -308,9 +308,9 @@ impl Calldata {
                     part_compress
                         .power
                         .add(&self.bytes_info[i].clone().zero_compress);
-                    part_compress.description.push(self.create_desc(
+                    part_compress.descriptions.push(self.create_desc(
                         from_byte,
-                        &part_compress.description,
+                        &part_compress.descriptions,
                         zero_bytes_amount,
                         0x00,
                     ));
@@ -319,9 +319,9 @@ impl Calldata {
                     part_compress
                         .power
                         .add(&self.bytes_info[i].clone().copy_compress);
-                    part_compress.description.push(self.create_desc(
+                    part_compress.descriptions.push(self.create_desc(
                         from_byte,
-                        &part_compress.description,
+                        &part_compress.descriptions,
                         self.bytes_info[i].copy_compress.decompressed_size,
                         0x01,
                     ));
@@ -354,36 +354,36 @@ impl Calldata {
 
     pub fn zip(
         &self,
-        instractions: Vec<CompressDataDescription>,
+        descriptions: Vec<CompressDataDescription>,
     ) -> Result<Vec<u8>, CompressorError> {
         let mut result: Vec<u8> = Vec::new();
         let bb = [32, 20, 4, 31];
-        for instraction in instractions.iter() {
-            match instraction.method {
+        for description in descriptions.iter() {
+            match description.method {
                 0x00 => {
                     // 00XXXXXX
-                    result.push((instraction.amount_bytes - 1) as u8);
+                    result.push((description.amount_bytes - 1) as u8);
                 }
                 0x01 => {
                     // 01PXXXXX
                     let copy_bytes =
-                        self.get_bytes(instraction.start_byte, instraction.amount_bytes);
+                        self.get_bytes(description.start_byte, description.amount_bytes);
                     let mut non_zero_byte_index = 0;
-                    for j in 0..instraction.amount_bytes {
+                    for j in 0..description.amount_bytes {
                         if copy_bytes[j] != 0x00 {
                             non_zero_byte_index = j;
                             break;
                         }
                     }
                     result.push(
-                        ((instraction.amount_bytes - non_zero_byte_index - 1)
+                        ((description.amount_bytes - non_zero_byte_index - 1)
                             + 64
                             + if non_zero_byte_index == 0 { 0 } else { 32 })
                             as u8,
                     );
                     let copy_bytes = self.get_bytes(
-                        instraction.start_byte + non_zero_byte_index,
-                        instraction.amount_bytes - non_zero_byte_index,
+                        description.start_byte + non_zero_byte_index,
+                        description.amount_bytes - non_zero_byte_index,
                     );
                     result.extend(copy_bytes);
                 }
@@ -391,7 +391,7 @@ impl Calldata {
                     // 10BBXXXX XXXXXXXX
                     let index = *self
                         .lookup
-                        .get(&self.get_bytes(instraction.start_byte, instraction.amount_bytes))
+                        .get(&self.get_bytes(description.start_byte, description.amount_bytes))
                         .unwrap();
                     result.extend(
                         BigUint::from(
@@ -399,7 +399,7 @@ impl Calldata {
                                 + 2_u64.pow(15) as usize
                                 + (bb
                                     .iter()
-                                    .position(|&r| r == instraction.amount_bytes)
+                                    .position(|&r| r == description.amount_bytes)
                                     .unwrap()
                                     * 2_u64.pow(12) as usize),
                         )
@@ -410,7 +410,7 @@ impl Calldata {
                     // 11BBXXXX XXXXXXXX XXXXXXXX
                     let index = *self
                         .lookup
-                        .get(&self.get_bytes(instraction.start_byte, instraction.amount_bytes))
+                        .get(&self.get_bytes(description.start_byte, description.amount_bytes))
                         .unwrap();
                     result.extend(
                         BigUint::from(
@@ -418,7 +418,7 @@ impl Calldata {
                                 + 3 * 2_u64.pow(22) as usize
                                 + (bb
                                     .iter()
-                                    .position(|&r| r == instraction.amount_bytes)
+                                    .position(|&r| r == description.amount_bytes)
                                     .unwrap()
                                     * 2_u64.pow(20) as usize),
                         )
@@ -426,7 +426,7 @@ impl Calldata {
                     );
                 }
                 _ => {
-                    return Err(CompressorError::UnsuportedMethod(instraction.method));
+                    return Err(CompressorError::UnsuportedMethod(description.method));
                 }
             }
         }
@@ -444,7 +444,7 @@ impl Calldata {
                     decompressed_size: 1,
                     compressed_size: 1,
                 },
-                description: vec![CompressDataDescription {
+                descriptions: vec![CompressDataDescription {
                     start_byte: 0,
                     amount_bytes: 1,
                     method: 0x00,
@@ -456,7 +456,7 @@ impl Calldata {
                     decompressed_size: 1,
                     compressed_size: 2,
                 },
-                description: vec![CompressDataDescription {
+                descriptions: vec![CompressDataDescription {
                     start_byte: 0,
                     amount_bytes: 1,
                     method: 0x01,
@@ -474,8 +474,8 @@ impl Calldata {
                     compressed_size: best_compress_for_first_n_bytes[i - 1].power.compressed_size
                         + 2,
                 },
-                description: [
-                    best_compress_for_first_n_bytes[i - 1].clone().description,
+                descriptions: [
+                    best_compress_for_first_n_bytes[i - 1].clone().descriptions,
                     vec![CompressDataDescription {
                         start_byte: i,
                         amount_bytes: 1,
@@ -490,16 +490,16 @@ impl Calldata {
 
                 let mut prefix_compress = CompressData {
                     power: CompressDataPower::default(),
-                    description: Vec::new(),
+                    descriptions: Vec::new(),
                 };
 
-                if part_compress.description[0].start_byte != 0 {
-                    let prev_desc_index = part_compress.description[0].start_byte - 1;
+                if part_compress.descriptions[0].start_byte != 0 {
+                    let prev_desc_index = part_compress.descriptions[0].start_byte - 1;
                     prefix_compress.power = best_compress_for_first_n_bytes[prev_desc_index]
                         .power
                         .clone();
-                    prefix_compress.description = best_compress_for_first_n_bytes[prev_desc_index]
-                        .description
+                    prefix_compress.descriptions = best_compress_for_first_n_bytes[prev_desc_index]
+                        .descriptions
                         .clone();
                 }
 
@@ -513,7 +513,7 @@ impl Calldata {
                             compressed_size: prefix_compress.power.compressed_size
                                 + part_compress.power.compressed_size,
                         },
-                        description: [prefix_compress.description, part_compress.description]
+                        descriptions: [prefix_compress.descriptions, part_compress.descriptions]
                             .concat(),
                     };
                 }
@@ -529,7 +529,7 @@ impl Calldata {
                     best_compress_for_first_n_bytes
                         .last()
                         .unwrap()
-                        .description
+                        .descriptions
                         .clone(),
                 )?,
             ),
@@ -541,7 +541,7 @@ impl Calldata {
             description: best_compress_for_first_n_bytes
                 .last()
                 .unwrap()
-                .description
+                .descriptions
                 .clone(),
         })
     }
@@ -571,6 +571,7 @@ impl Calldata {
         }
     }
 
+    // 00XXXXXX
     pub fn check_zeros_case(&self, n: usize) -> CompressDataPower {
         let mut current_byte_index = n;
         let byte = self.get_byte(current_byte_index);
@@ -581,6 +582,7 @@ impl Calldata {
             };
         }
         current_byte_index += 1;
+        // 00XXXXXX case, XXXXXX max value is 2**6-1=63
         while self.get_byte(current_byte_index) == 0x00
             && current_byte_index < self.data.len()
             && current_byte_index - n <= 63
@@ -593,16 +595,20 @@ impl Calldata {
         }
     }
 
+    // 01PXXXXX
     pub fn check_copy_case_with_zeros(&self, n: usize) -> CompressDataPower {
         let mut current_byte_index = n;
         let byte = self.get_byte(current_byte_index);
         if byte != 0x00 {
+            // decompressed: 0xXX, 1 Byte
+            // compressed: 01000000 0xXX, 2 Byte
             return CompressDataPower {
                 decompressed_size: 1,
                 compressed_size: 2,
             };
         }
         current_byte_index += 1;
+        // 01PXXXXX case, XXXXX max value is 2**5-1=31
         while self.get_byte(current_byte_index) == 0x00 && current_byte_index < self.data.len() {
             if current_byte_index - n == 32 {
                 return CompressDataPower {
@@ -623,6 +629,7 @@ impl Calldata {
         }
     }
 
+    // 10BBXXXX XXXXXXXX case and 11BBXXXX XXXXXXXX XXXXXXXX case
     pub fn check_storage_case(&self, n: usize) -> Result<Vec<CompressDataPower>, CompressorError> {
         if self.dict.is_empty() || self.lookup.is_empty() {
             return Err(CompressorError::DictNotInit);
@@ -636,7 +643,7 @@ impl Calldata {
                 if tail.len() >= *len {
                     best.push(CompressDataPower {
                         decompressed_size: *len,
-                        compressed_size: if *index > 4096 { 3 } else { 2 },
+                        compressed_size: if *index > 4096 { 3 } else { 2 },// 11BBXXXX XXXXXXXX XXXXXXXX or 10BBXXXX XXXXXXXX
                     });
                 }
             }
