@@ -560,7 +560,7 @@ impl Calldata {
         self.dict = dict_data.clone();
 
         for (i, data) in self.dict.iter().enumerate() {
-            let value: Vec<u8> = data[1..].to_vec();
+            let value: Vec<u8> = data.to_vec();
             self.lookup.insert(value.clone(), i);
             self.lookup
                 .insert(value.clone()[value.len() - 4..].to_vec(), i);
