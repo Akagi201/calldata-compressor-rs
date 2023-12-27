@@ -551,7 +551,8 @@ impl Calldata {
     }
 
     pub fn get_bytes(&self, start: usize, n: usize) -> Vec<u8> {
-        self.data.as_ref()[start..start + n].to_vec().clone()
+        let end = std::cmp::min(start + n, self.data.len());
+        self.data.as_ref()[start..end].to_vec().clone()
     }
 
     pub fn init_dict(&mut self, dict: &[Bytes32]) {
@@ -637,6 +638,7 @@ impl Calldata {
 
         let mut best = Vec::<CompressDataPower>::new();
         for len in [32, 31, 20, 4].iter() {
+            println!("n: {}, len: {}", n, *len);
             let tail = self.get_bytes(n, *len);
             let index = self.lookup.get(&tail);
             if let Some(index) = index {
