@@ -2,7 +2,7 @@
 name = "calldata-compressor"
 version = "0.1.2"
 edition = "2021"
-description = "Compresses calldata for Ethereum transactions"
+description = "A Compression algorithm for EVM abi.encoded data, especially for EVM calldata"
 license = "Apache-2.0"
 
 [profile.dev]
@@ -21,7 +21,12 @@ overflow-checks = false
 [dependencies]
 ethers = "2.0.11"
 num-bigint = "0.4.4"
-thiserror = "1.0.50"
+thiserror = "1.0.52"
+
+[dev-dependencies]
+hex = "0.4.3"
+serde = "1.0.193"
+serde_json = "1.0.108"
 
 [lints.rust]
 unsafe_code = "forbid"

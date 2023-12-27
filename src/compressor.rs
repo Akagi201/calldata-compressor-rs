@@ -672,7 +672,29 @@ pub fn compress(
 
 #[cfg(test)]
 mod tests {
+    use std::{fs::File, io::Read};
+
+    use serde::Deserialize;
+
     use super::*;
+    #[allow(dead_code)]
+    #[derive(Debug, Deserialize)]
+    struct TestData {
+        pub compress: String,
+        pub uncompress: String,
+    }
+
+    fn read_json_file(file_path: &str) -> Result<TestData, Box<dyn std::error::Error>> {
+        let mut file = File::open(file_path)?;
+
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)?;
+
+        let data: TestData = serde_json::from_str(&contents)?;
+
+        Ok(data)
+    }
+
     #[test]
     fn test_new_calldata() {
         let result = Calldata::new(
@@ -680,6 +702,21 @@ mod tests {
             &Bytes32::default(),
             &Bytes32::default(),
         );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_compress() {
+        // 1000 zero Bytes32 vector
+        let empty_dict = vec![Bytes32::default(); 1000];
+        let test_data = read_json_file("test-data/calldata.json").unwrap();
+        let calldata = test_data.uncompress.strip_prefix("0x").unwrap();
+        println!("calldata str len: {}", calldata.len());
+        let calldata = Bytes::from(hex::decode(calldata).unwrap());
+        println!("calldata bytes len: {}", calldata.len());
+        let wallet_addr = Bytes32::default();
+        let contract_addr = Bytes32::default();
+        let result = compress(&calldata, &wallet_addr, &contract_addr, &empty_dict);
         assert!(result.is_ok());
     }
 }
