@@ -4,6 +4,8 @@ use thiserror::Error;
 pub enum CompressorError {
     #[error("Dict not init")]
     DictNotInit,
+    #[error("Invalid range")]
+    InvalidRange,
     #[error("Unsuported method: `{0}`")]
     UnsuportedMethod(u8),
 }
