@@ -6,6 +6,8 @@ pub enum CompressorError {
     DictNotInit,
     #[error("Invalid range")]
     InvalidRange,
+    #[error("Lookup not found")]
+    LookupNotFound,
     #[error("Unsuported method: `{0}`")]
     UnsuportedMethod(u8),
 }

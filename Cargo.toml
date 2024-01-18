@@ -1,6 +1,6 @@
 [package]
 name = "calldata-compressor"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 description = "A Compression algorithm for EVM abi.encoded data, especially for EVM calldata"
 license = "Apache-2.0"
@@ -35,3 +35,4 @@ unsafe_code = "forbid"
 [lints.clippy]
 int_plus_one = "allow"
 needless_range_loop = "allow"
+must_use_candidate = "allow"

@@ -1,3 +1,11 @@
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_sign_loss)]
 use std::collections::HashMap;
 
 use ethers::core::types::Bytes;
@@ -17,7 +25,7 @@ pub struct CompressDataDescription {
 
 impl CompressDataDescription {
     pub fn new(start_byte: usize, amount_bytes: usize, method: u8) -> Self {
-        CompressDataDescription {
+        Self {
             start_byte,
             amount_bytes,
             method,
@@ -34,7 +42,7 @@ pub struct CompressDataPower {
 
 impl CompressDataPower {
     pub fn new(decompressed_size: usize, compressed_size: usize) -> Self {
-        CompressDataPower {
+        Self {
             decompressed_size,
             compressed_size,
         }
@@ -46,7 +54,7 @@ impl CompressDataPower {
     }
 
     // adds the decompressed_size and compressed_size of another CompressDataPower instance to the current instance
-    pub fn add(&mut self, other: &CompressDataPower) {
+    pub fn add(&mut self, other: &Self) {
         self.decompressed_size += other.decompressed_size;
         self.compressed_size += other.compressed_size;
     }
@@ -61,7 +69,7 @@ pub struct CompressData {
 
 impl CompressData {
     pub fn new(power: CompressDataPower, descriptions: &[CompressDataDescription]) -> Self {
-        CompressData {
+        Self {
             power,
             descriptions: descriptions.to_vec(),
         }
@@ -83,7 +91,7 @@ impl ByteInfo {
         copy_compress: CompressDataPower,
         storage_compress: &[CompressDataPower],
     ) -> Self {
-        ByteInfo {
+        Self {
             index,
             zero_compress,
             copy_compress,
@@ -110,7 +118,7 @@ impl Calldata {
         wallet_addr: &Bytes32,
         contract_addr: &Bytes32,
     ) -> Result<Self, CompressorError> {
-        Ok(Calldata {
+        Ok(Self {
             data: data.clone(),
             wallet_addr: *wallet_addr,
             contract_addr: *contract_addr,
@@ -127,7 +135,7 @@ impl Calldata {
                 index: i,
                 zero_compress: self.check_zeros_case(i),
                 copy_compress: self.check_copy_case_with_zeros(i),
-                storage_compress: self.check_storage_case(i).unwrap(),
+                storage_compress: self.check_storage_case(i).unwrap_or_default(),
             });
         }
     }
@@ -139,11 +147,11 @@ impl Calldata {
         amount_bytes: usize,
         method: u8,
     ) -> CompressDataDescription {
-        let start_byte: usize = if !array_desc.is_empty() {
+        let start_byte: usize = if array_desc.is_empty() {
+            from_byte
+        } else {
             let prev_desc_index = array_desc.len() - 1;
             array_desc[prev_desc_index].start_byte + array_desc[prev_desc_index].amount_bytes
-        } else {
-            from_byte
         };
         CompressDataDescription {
             start_byte,
@@ -185,7 +193,7 @@ impl Calldata {
 
         let mut i = from_byte;
         while i <= to_byte {
-            if self.bytes_info[i].zero_compress.decompressed_size >= to_byte - i + 1 {
+            if self.bytes_info[i].zero_compress.decompressed_size > to_byte - i {
                 part_compress =
                     self.add_just_copy_compress(from_byte, part_compress, just_copy_amount);
                 part_compress.power.add(&CompressDataPower {
@@ -205,7 +213,7 @@ impl Calldata {
             let mut need_just_copy_amount = true;
 
             if self.bytes_info[i].zero_compress.decompressed_size != 0 {
-                if self.bytes_info[i].copy_compress.decompressed_size >= to_byte - i + 1
+                if self.bytes_info[i].copy_compress.decompressed_size > to_byte - i
                     || self.bytes_info[i].zero_compress.range()
                         > self.bytes_info[i].copy_compress.range()
                 {
@@ -353,11 +361,11 @@ impl Calldata {
 
     pub fn zip(
         &self,
-        descriptions: Vec<CompressDataDescription>,
+        descriptions: &[CompressDataDescription],
     ) -> Result<Vec<u8>, CompressorError> {
         let mut result: Vec<u8> = Vec::new();
         let bb = [32, 20, 4, 31];
-        for description in descriptions.iter() {
+        for description in descriptions {
             match description.method {
                 0x00 => {
                     // 00XXXXXX
@@ -365,11 +373,10 @@ impl Calldata {
                 }
                 0x01 => {
                     // 01PXXXXX
-                    let copy_bytes = self
-                        .get_bytes(description.start_byte, description.amount_bytes)
-                        .unwrap();
+                    let copy_bytes =
+                        self.get_bytes(description.start_byte, description.amount_bytes)?;
                     let mut non_zero_byte_index = 0;
-                    for j in 0..description.amount_bytes {
+                    for (j, _) in copy_bytes.iter().enumerate().take(description.amount_bytes) {
                         if copy_bytes[j] != 0x00 {
                             non_zero_byte_index = j;
                             break;
@@ -381,24 +388,18 @@ impl Calldata {
                             + if non_zero_byte_index == 0 { 0 } else { 32 })
                             as u8,
                     );
-                    let copy_bytes = self
-                        .get_bytes(
-                            description.start_byte + non_zero_byte_index,
-                            description.amount_bytes - non_zero_byte_index,
-                        )
-                        .unwrap();
+                    let copy_bytes = self.get_bytes(
+                        description.start_byte + non_zero_byte_index,
+                        description.amount_bytes - non_zero_byte_index,
+                    )?;
                     result.extend(copy_bytes);
                 }
                 0x10 => {
                     // 10BBXXXX XXXXXXXX
                     let index = *self
                         .lookup
-                        .get(
-                            &self
-                                .get_bytes(description.start_byte, description.amount_bytes)
-                                .unwrap(),
-                        )
-                        .unwrap();
+                        .get(&self.get_bytes(description.start_byte, description.amount_bytes)?)
+                        .ok_or(CompressorError::LookupNotFound)?;
                     result.extend(
                         BigUint::from(
                             index
@@ -416,12 +417,8 @@ impl Calldata {
                     // 11BBXXXX XXXXXXXX XXXXXXXX
                     let index = *self
                         .lookup
-                        .get(
-                            &self
-                                .get_bytes(description.start_byte, description.amount_bytes)
-                                .unwrap(),
-                        )
-                        .unwrap();
+                        .get(&self.get_bytes(description.start_byte, description.amount_bytes)?)
+                        .ok_or(CompressorError::LookupNotFound)?;
                     result.extend(
                         BigUint::from(
                             index
@@ -539,7 +536,7 @@ impl Calldata {
             uncompressed_data: self.data.clone(),
             compressed_data: Bytes::from(
                 self.zip(
-                    best_compress_for_first_n_bytes
+                    &best_compress_for_first_n_bytes
                         .last()
                         .unwrap()
                         .descriptions
@@ -571,7 +568,7 @@ impl Calldata {
         if start >= end {
             return Err(CompressorError::InvalidRange);
         }
-        Ok(self.data.as_ref()[start..end].to_vec().clone())
+        Ok(self.data.as_ref()[start..end].to_vec())
     }
 
     pub fn init_dict(&mut self, dict: &[Bytes32]) {
@@ -658,7 +655,7 @@ impl Calldata {
         }
 
         let mut best = Vec::<CompressDataPower>::new();
-        for len in [32, 31, 20, 4].iter() {
+        for len in &[32, 31, 20, 4] {
             let tail = self.get_bytes(n, *len).unwrap();
             let index = self.lookup.get(&tail);
             if let Some(index) = index {
