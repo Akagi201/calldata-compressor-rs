@@ -442,8 +442,8 @@ impl Calldata {
 
     pub fn compress(&mut self) -> Result<CompressResult, CompressorError> {
         self.analyse();
-
-        let mut best_compress_for_first_n_bytes: Vec<CompressData> = Vec::new();
+        let mut best_compress_for_first_n_bytes: Vec<CompressData> =
+            vec![CompressData::default(); self.bytes_info.len() - 1];
 
         if self.bytes_info[0].zero_compress.decompressed_size != 0 {
             best_compress_for_first_n_bytes.push(CompressData {
@@ -472,9 +472,6 @@ impl Calldata {
         }
 
         for i in 1..self.bytes_info.len() {
-            if i >= best_compress_for_first_n_bytes.len() {
-                best_compress_for_first_n_bytes.resize(i + 1, CompressData::default());
-            }
             best_compress_for_first_n_bytes[i] = CompressData {
                 power: CompressDataPower {
                     decompressed_size: best_compress_for_first_n_bytes[i - 1]
