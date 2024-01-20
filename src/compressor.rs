@@ -391,7 +391,7 @@ impl Calldata {
                     // 10BBXXXX XXXXXXXX
                     let index = *self
                         .lookup
-                        .get(&self.get_bytes(description.start_byte, description.amount_bytes)?)
+                        .get(self.get_bytes(description.start_byte, description.amount_bytes)?)
                         .ok_or(CompressorError::LookupNotFound)?;
                     result.extend(
                         BigUint::from(
@@ -410,7 +410,7 @@ impl Calldata {
                     // 11BBXXXX XXXXXXXX XXXXXXXX
                     let index = *self
                         .lookup
-                        .get(&self.get_bytes(description.start_byte, description.amount_bytes)?)
+                        .get(self.get_bytes(description.start_byte, description.amount_bytes)?)
                         .ok_or(CompressorError::LookupNotFound)?;
                     result.extend(
                         BigUint::from(
@@ -550,7 +550,7 @@ impl Calldata {
         self.data.get(n).ok_or(CompressorError::InvalidRange)
     }
 
-    pub fn get_bytes(&self, start: usize, n: usize) -> Result<Vec<u8>, CompressorError> {
+    pub fn get_bytes(&self, start: usize, n: usize) -> Result<&[u8], CompressorError> {
         let end = std::cmp::min(start + n, self.data.len());
         if start >= end {
             return Err(CompressorError::InvalidRange);
@@ -558,7 +558,6 @@ impl Calldata {
         self.data
             .get(start..end)
             .ok_or(CompressorError::InvalidRange)
-            .map(|x| x.to_vec())
     }
 
     pub fn init_dict(&mut self, dict: &[Bytes32]) {
@@ -644,7 +643,7 @@ impl Calldata {
         let mut best = Vec::<CompressDataPower>::new();
         for len in &[32, 31, 20, 4] {
             let tail = self.get_bytes(n, *len).unwrap();
-            let index = self.lookup.get(&tail);
+            let index = self.lookup.get(tail);
             if let Some(index) = index {
                 if tail.len() >= *len {
                     best.push(CompressDataPower {
