@@ -10,6 +10,7 @@ use std::collections::HashMap;
 
 use ethers::core::types::Bytes;
 use num_bigint::BigUint;
+use rayon::prelude::*;
 
 use crate::errors::CompressorError;
 
@@ -68,15 +69,15 @@ pub struct CompressData {
 }
 
 impl CompressData {
-    pub fn new(power: CompressDataPower, descriptions: &[CompressDataDescription]) -> Self {
+    pub fn new(power: CompressDataPower, descriptions: Vec<CompressDataDescription>) -> Self {
         Self {
             power,
-            descriptions: descriptions.to_vec(),
+            descriptions,
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct ByteInfo {
     pub index: usize,
     pub zero_compress: CompressDataPower,
@@ -89,13 +90,13 @@ impl ByteInfo {
         index: usize,
         zero_compress: CompressDataPower,
         copy_compress: CompressDataPower,
-        storage_compress: &[CompressDataPower],
+        storage_compress: Vec<CompressDataPower>,
     ) -> Self {
         Self {
             index,
             zero_compress,
             copy_compress,
-            storage_compress: storage_compress.to_vec(),
+            storage_compress,
         }
     }
 }
@@ -114,29 +115,29 @@ pub struct Calldata {
 
 impl Calldata {
     pub fn new(
-        data: &Bytes,
-        wallet_addr: &Bytes32,
-        contract_addr: &Bytes32,
+        data: Bytes,
+        wallet_addr: Bytes32,
+        contract_addr: Bytes32,
     ) -> Result<Self, CompressorError> {
+        let len = data.len();
         Ok(Self {
-            data: data.clone(),
-            wallet_addr: *wallet_addr,
-            contract_addr: *contract_addr,
-            bytes_info: Vec::new(),
+            data,
+            wallet_addr,
+            contract_addr,
+            bytes_info: vec![ByteInfo::default(); len],
             dict: Vec::new(),
             lookup: HashMap::new(),
         })
     }
 
     pub fn analyse(&mut self) {
-        self.bytes_info = vec![];
         for i in 0..self.data.len() {
-            self.bytes_info.push(ByteInfo {
+            self.bytes_info[i] = ByteInfo {
                 index: i,
                 zero_compress: self.check_zeros_case(i),
                 copy_compress: self.check_copy_case_with_zeros(i),
                 storage_compress: self.check_storage_case(i).unwrap_or_default(),
-            });
+            };
         }
     }
 
@@ -246,7 +247,7 @@ impl Calldata {
                         {
                             part_compress
                                 .power
-                                .add(&self.bytes_info[i].clone().storage_compress[j].clone());
+                                .add(&self.bytes_info[i].storage_compress[j]);
                             part_compress.descriptions.push(self.create_desc(
                                 from_byte,
                                 &part_compress.descriptions,
@@ -259,9 +260,7 @@ impl Calldata {
                             ));
                             i += self.bytes_info[i].storage_compress[j].decompressed_size;
                         } else {
-                            part_compress
-                                .power
-                                .add(&self.bytes_info[i].clone().zero_compress);
+                            part_compress.power.add(&self.bytes_info[i].zero_compress);
                             part_compress.descriptions.push(self.create_desc(
                                 from_byte,
                                 &part_compress.descriptions,
@@ -273,7 +272,7 @@ impl Calldata {
                     } else if is_storage_range_more_than_copy_compress {
                         part_compress
                             .power
-                            .add(&self.bytes_info[i].clone().storage_compress[j].clone());
+                            .add(&self.bytes_info[i].storage_compress[j]);
                         part_compress.descriptions.push(self.create_desc(
                             from_byte,
                             &part_compress.descriptions,
@@ -286,9 +285,7 @@ impl Calldata {
                         ));
                         i += self.bytes_info[i].storage_compress[j].decompressed_size;
                     } else if is_padding_with_copy {
-                        part_compress
-                            .power
-                            .add(&self.bytes_info[i].clone().copy_compress);
+                        part_compress.power.add(&self.bytes_info[i].copy_compress);
                         part_compress.descriptions.push(self.create_desc(
                             from_byte,
                             &part_compress.descriptions,
@@ -312,9 +309,7 @@ impl Calldata {
                 }
 
                 if is_zero_compress {
-                    part_compress
-                        .power
-                        .add(&self.bytes_info[i].clone().zero_compress);
+                    part_compress.power.add(&self.bytes_info[i].zero_compress);
                     part_compress.descriptions.push(self.create_desc(
                         from_byte,
                         &part_compress.descriptions,
@@ -323,9 +318,7 @@ impl Calldata {
                     ));
                     i += zero_bytes_amount;
                 } else if is_padding_with_copy {
-                    part_compress
-                        .power
-                        .add(&self.bytes_info[i].clone().copy_compress);
+                    part_compress.power.add(&self.bytes_info[i].copy_compress);
                     part_compress.descriptions.push(self.create_desc(
                         from_byte,
                         &part_compress.descriptions,
@@ -405,8 +398,8 @@ impl Calldata {
                             index
                                 + 2_u64.pow(15) as usize
                                 + (bb
-                                    .iter()
-                                    .position(|&r| r == description.amount_bytes)
+                                    .par_iter()
+                                    .position_first(|&r| r == description.amount_bytes)
                                     .unwrap()
                                     * 2_u64.pow(12) as usize),
                         )
@@ -424,8 +417,8 @@ impl Calldata {
                             index
                                 + 3 * 2_u64.pow(22) as usize
                                 + (bb
-                                    .iter()
-                                    .position(|&r| r == description.amount_bytes)
+                                    .par_iter()
+                                    .position_first(|&r| r == description.amount_bytes)
                                     .unwrap()
                                     * 2_u64.pow(20) as usize),
                         )
@@ -482,7 +475,7 @@ impl Calldata {
                         + 2,
                 },
                 descriptions: [
-                    best_compress_for_first_n_bytes[i - 1].clone().descriptions,
+                    best_compress_for_first_n_bytes[i - 1].descriptions.clone(),
                     vec![CompressDataDescription {
                         start_byte: i,
                         amount_bytes: 1,
@@ -553,11 +546,8 @@ impl Calldata {
         })
     }
 
-    pub fn get_byte(&self, n: usize) -> Result<u8, CompressorError> {
-        if let Ok(bytes) = self.get_bytes(n, 1) {
-            return Ok(bytes[0]);
-        }
-        Err(CompressorError::InvalidRange)
+    pub fn get_byte(&self, n: usize) -> Result<&u8, CompressorError> {
+        self.data.get(n).ok_or(CompressorError::InvalidRange)
     }
 
     pub fn get_bytes(&self, start: usize, n: usize) -> Result<Vec<u8>, CompressorError> {
@@ -565,23 +555,23 @@ impl Calldata {
         if start >= end {
             return Err(CompressorError::InvalidRange);
         }
-        Ok(self.data.as_ref()[start..end].to_vec())
+        self.data
+            .get(start..end)
+            .ok_or(CompressorError::InvalidRange)
+            .map(|x| x.to_vec())
     }
 
     pub fn init_dict(&mut self, dict: &[Bytes32]) {
         let mut dict_data = vec![self.wallet_addr, self.contract_addr];
         dict_data.extend(dict);
-        self.dict = dict_data.clone();
+        self.dict = dict_data;
 
         for (i, data) in self.dict.iter().enumerate() {
             let value: Vec<u8> = data.to_vec();
             self.lookup.insert(value.clone(), i);
-            self.lookup
-                .insert(value.clone()[value.len() - 4..].to_vec(), i);
-            self.lookup
-                .insert(value.clone()[value.len() - 20..].to_vec(), i);
-            self.lookup
-                .insert(value.clone()[value.len() - 31..].to_vec(), i);
+            self.lookup.insert(value[value.len() - 4..].to_vec(), i);
+            self.lookup.insert(value[value.len() - 20..].to_vec(), i);
+            self.lookup.insert(value[value.len() - 31..].to_vec(), i);
         }
     }
 
@@ -589,7 +579,7 @@ impl Calldata {
     pub fn check_zeros_case(&self, n: usize) -> CompressDataPower {
         let mut current_byte_index = n;
         let byte = self.get_byte(current_byte_index);
-        if !byte.is_ok_and(|x| x == 0x00) {
+        if !byte.is_ok_and(|x| *x == 0x00) {
             return CompressDataPower {
                 decompressed_size: 0,
                 compressed_size: 0,
@@ -597,7 +587,7 @@ impl Calldata {
         }
         current_byte_index += 1;
         // 00XXXXXX case, XXXXXX max value is 2**6-1=63
-        while self.get_byte(current_byte_index).is_ok_and(|x| x == 0x00)
+        while self.get_byte(current_byte_index).is_ok_and(|x| *x == 0x00)
             && current_byte_index < self.data.len()
             && current_byte_index - n <= 63
         {
@@ -613,7 +603,7 @@ impl Calldata {
     pub fn check_copy_case_with_zeros(&self, n: usize) -> CompressDataPower {
         let mut current_byte_index = n;
         let byte = self.get_byte(current_byte_index);
-        if !byte.is_ok_and(|x| x == 0x00) {
+        if !byte.is_ok_and(|x| *x == 0x00) {
             // decompressed: 0xXX, 1 Byte
             // compressed: 01000000 0xXX, 2 Byte
             return CompressDataPower {
@@ -623,7 +613,7 @@ impl Calldata {
         }
         current_byte_index += 1;
         // 01PXXXXX case, XXXXX max value is 2**5-1=31
-        while self.get_byte(current_byte_index).is_ok_and(|x| x == 0x00)
+        while self.get_byte(current_byte_index).is_ok_and(|x| *x == 0x00)
             && current_byte_index < self.data.len()
         {
             if current_byte_index - n == 32 {
@@ -659,7 +649,7 @@ impl Calldata {
                 if tail.len() >= *len {
                     best.push(CompressDataPower {
                         decompressed_size: *len,
-                        compressed_size: if *index > 4096 { 3 } else { 2 },// 11BBXXXX XXXXXXXX XXXXXXXX or 10BBXXXX XXXXXXXX
+                        compressed_size: if *index > 4096 { 3 } else { 2 }, // 11BBXXXX XXXXXXXX XXXXXXXX or 10BBXXXX XXXXXXXX
                     });
                 }
             }
@@ -676,9 +666,9 @@ pub struct CompressResult {
 }
 
 pub fn compress(
-    calldata: &Bytes,
-    wallet_addr: &Bytes32,
-    contract_addr: &Bytes32,
+    calldata: Bytes,
+    wallet_addr: Bytes32,
+    contract_addr: Bytes32,
     dict: &[Bytes32],
 ) -> Result<CompressResult, CompressorError> {
     let mut calldata = Calldata::new(calldata, wallet_addr, contract_addr).unwrap();
@@ -731,7 +721,7 @@ mod tests {
         let calldata = Bytes::from(hex::decode(calldata).unwrap());
         let wallet_addr = Bytes32::default();
         let contract_addr = Bytes32::default();
-        let result = compress(&calldata, &wallet_addr, &contract_addr, &empty_dict);
+        let result = compress(calldata, wallet_addr, contract_addr, &empty_dict);
         assert!(result.is_ok());
         assert_eq!(
             hex::encode(result.unwrap().compressed_data.to_vec()),
@@ -747,7 +737,7 @@ mod tests {
         let wallet_addr = Bytes32::default();
         let contract_addr = Bytes32::default();
 
-        let mut cb = Calldata::new(&calldata, &wallet_addr, &contract_addr).unwrap();
+        let mut cb = Calldata::new(calldata.clone(), wallet_addr, contract_addr).unwrap();
         cb.init_dict(&empty_dict);
         cb.analyse();
 
@@ -771,7 +761,7 @@ mod tests {
         let expected_copy_compress = read_json_file("test-data/copy_compress.json").unwrap();
         assert_json_eq!(&copy_compress_json, &expected_copy_compress);
 
-        let result = compress(&calldata, &wallet_addr, &contract_addr, &empty_dict);
+        let result = compress(calldata, wallet_addr, contract_addr, &empty_dict);
         assert!(result.is_ok());
         assert_eq!(
             hex::encode(result.unwrap().compressed_data.to_vec()),

@@ -14,13 +14,14 @@ debug = false
 codegen-units = 1
 opt-level = 3
 lto = true
-debug = false
+debug = true
 panic = "unwind"
 overflow-checks = false
 
 [dependencies]
 ethers = "2.0.11"
 num-bigint = "0.4.4"
+rayon = "1.8.1"
 serde_json = "1.0.111"
 thiserror = "1.0.56"
 
