@@ -13,7 +13,7 @@ This project is a Rust implementation of the Calldata Compressor, based on [1inc
 Test
 
 ```sh
-cargo nextest run
+cargo nextest run -r
 ```
 
 Benchmarks

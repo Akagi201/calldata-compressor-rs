@@ -565,13 +565,13 @@ impl Calldata {
         dict_data.extend(dict);
         self.dict = dict_data;
 
-        for (i, data) in self.dict.iter().enumerate() {
+        self.dict.iter().enumerate().for_each(|(i, data)| {
             let value: Vec<u8> = data.to_vec();
             self.lookup.insert(value.clone(), i);
             self.lookup.insert(value[value.len() - 4..].to_vec(), i);
             self.lookup.insert(value[value.len() - 20..].to_vec(), i);
             self.lookup.insert(value[value.len() - 31..].to_vec(), i);
-        }
+        });
     }
 
     // 00XXXXXX
