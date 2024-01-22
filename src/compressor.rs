@@ -14,7 +14,7 @@ use rayon::prelude::*;
 
 use crate::errors::CompressorError;
 
-type Bytes32 = [u8; 32];
+pub type Bytes32 = [u8; 32];
 
 /// How to compress a specific portion of data
 #[derive(Debug, Clone)]
