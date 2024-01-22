@@ -713,7 +713,7 @@ mod tests {
     #[test]
     fn test_compress_big() {
         // 1000 zero Bytes32 vector
-        let empty_dict = vec![Bytes32::default(); 1000];
+        let empty_dict = vec![Bytes32::default(); 1];
         let test_data = read_calldata_file("test-data/calldata.json").unwrap();
         let calldata = test_data.uncompress.strip_prefix("0x").unwrap();
         let expected_compress = test_data.compress.strip_prefix("0x").unwrap();
@@ -730,7 +730,7 @@ mod tests {
 
     #[test]
     fn test_compress_small() {
-        let empty_dict = vec![Bytes32::default(); 1000];
+        let empty_dict = vec![Bytes32::default(); 1];
         let calldata = "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000086d79537472696e67000000000000000000000000000000000000000000000000".strip_prefix("0x").unwrap();
         let calldata = Bytes::from(hex::decode(calldata).unwrap());
         let wallet_addr = Bytes32::default();
