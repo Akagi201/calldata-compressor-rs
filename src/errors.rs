@@ -8,6 +8,6 @@ pub enum CompressorError {
     InvalidRange,
     #[error("Lookup not found")]
     LookupNotFound,
-    #[error("Unsuported method: `{0}`")]
-    UnsuportedMethod(u8),
+    #[error("Unsupported method: `{0}`")]
+    UnsupportedMethod(u8),
 }

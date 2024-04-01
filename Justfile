@@ -4,5 +4,8 @@ clippy:
 build:
   cargo build
 
+test:
+  cargo nextest run -r
+
 format:
   cargo +nightly fmt --all

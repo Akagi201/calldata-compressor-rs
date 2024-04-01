@@ -37,7 +37,7 @@ impl CompressDataDescription {
 /// the power of the compressed data
 #[derive(Debug, Clone, Default)]
 pub struct CompressDataPower {
-    pub decompressed_size: usize, // the size of the original(decompresed) data in bytes.
+    pub decompressed_size: usize, // the size of the original(decompressed) data in bytes.
     pub compressed_size: usize,   // the size of the compressed data in bytes.
 }
 
@@ -49,7 +49,7 @@ impl CompressDataPower {
         }
     }
 
-    // the difference between the original(decompresed) data size and the compressed data size.
+    // the difference between the original(decompressed) data size and the compressed data size.
     pub fn range(&self) -> i64 {
         self.decompressed_size as i64 - self.compressed_size as i64
     }
@@ -426,7 +426,7 @@ impl Calldata {
                     );
                 }
                 _ => {
-                    return Err(CompressorError::UnsuportedMethod(description.method));
+                    return Err(CompressorError::UnsupportedMethod(description.method));
                 }
             }
         }
