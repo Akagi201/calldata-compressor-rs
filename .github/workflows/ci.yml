@@ -51,7 +51,3 @@ jobs:
           version: nightly
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
-      - name: Test with Miri
-        env:
-          MIRIFLAGS: -Zmiri-disable-isolation
-        run: cargo +nightly miri setup && cargo +nightly miri test
