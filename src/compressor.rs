@@ -8,7 +8,7 @@
 #![allow(clippy::cast_sign_loss)]
 use std::collections::HashMap;
 
-use ethers::core::types::Bytes;
+use alloy::primitives::Bytes;
 use num_bigint::BigUint;
 use rayon::prelude::*;
 
